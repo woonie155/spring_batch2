@@ -10,32 +10,35 @@ import org.springframework.batch.core.configuration.annotation.JobBuilderFactory
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
-import org.springframework.batch.item.database.JpaPagingItemReader;
-import org.springframework.batch.item.database.builder.JpaPagingItemReaderBuilder;
-import org.springframework.batch.item.database.orm.AbstractJpaQueryProvider;
+import org.springframework.batch.item.data.RepositoryItemReader;
+import org.springframework.batch.item.data.builder.RepositoryItemReaderBuilder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.domain.Sort;
 
-import javax.persistence.EntityManager;
-import javax.persistence.EntityManagerFactory;
-import javax.persistence.Query;
 import java.util.Collections;
 import java.util.Random;
 import java.util.UUID;
 
 @Slf4j
 @RequiredArgsConstructor
-//@Configuration
-public class JpaPagingItemReaderConfig {
-
+@Configuration
+public class JpaPageableItemReaderConfig {
     private final JobBuilderFactory jobBuilderFactory;
     private final StepBuilderFactory stepBuilderFactory;
-    private final EntityManagerFactory entityManagerFactory;
     private final UserRepository userRepository;
 
     @Bean
-    public Job job() {
+    public Job pageableJob() {
+        return jobBuilderFactory.get("jpaPageableItemReaderJob")
+                .incrementer(new RunIdIncrementer())
+                .start(pageableStep())
+                .build();
+    }
+
+    @Bean
+    public Step pageableStep() {
         Random random = new Random();
         for(int i=0; i<100; i++){
             User user = User.builder()
@@ -45,17 +48,9 @@ public class JpaPagingItemReaderConfig {
             userRepository.save(user);
         }
 
-        return jobBuilderFactory.get("jpaPagingItemReaderJob")
-                .incrementer(new RunIdIncrementer())
-                .start(step())
-                .build();
-    }
-
-    @Bean
-    public Step step() {
-        return stepBuilderFactory.get("jpaPagingItemReaderStep")
+        return stepBuilderFactory.get("jpaPageableItemReaderStep")
                 .<User, User>chunk(20)
-                .reader(itemReader(null))
+                .reader(pageableItemReader(null))
                 .writer(items -> {
                     log.info("======================\n write count: {}", items.size());
                     for (User u : items) {
@@ -66,38 +61,17 @@ public class JpaPagingItemReaderConfig {
                 .build();
     }
 
-
     @Bean
     @StepScope
-    public JpaPagingItemReader<User> itemReader(
+    public RepositoryItemReader<User> pageableItemReader(
             @Value("#{jobParameters['age']}") Integer age) {
 
-        CustomQueryProvider queryProvider = new CustomQueryProvider();
-        queryProvider.setAge(age);
-
-        return new JpaPagingItemReaderBuilder<User>()
-                .name("JpaPagingItemReader")
-                .entityManagerFactory(entityManagerFactory)
-                .pageSize(20)
-//                .queryString("select u from User u where u.age <= :age")
-                .queryProvider(queryProvider)
-                .parameterValues(Collections.singletonMap("age", age))
+        return new RepositoryItemReaderBuilder<User>()
+                .name("pageableItemReader")
+                .arguments(Collections.singletonList(age))
+                .methodName("findByAgeLessThanEqual")
+                .repository(userRepository)
+                .sorts(Collections.singletonMap("age", Sort.Direction.ASC))
                 .build();
-    }
-
-    static class CustomQueryProvider extends AbstractJpaQueryProvider {
-        private Integer age;
-        public Query createQuery(){
-            EntityManager em = getEntityManager();
-            Query query = em.createQuery("select u from User u where u.age <= :age");
-            query.setParameter("age", age);
-            return query;
-        }
-        public void setAge(Integer age){
-            this.age=age;
-        }
-        @Override
-        public void afterPropertiesSet() throws Exception {
-        }
     }
 }
