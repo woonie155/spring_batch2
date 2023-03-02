@@ -1,6 +1,7 @@
 package com.example.spring_batch2.read;
 
 import com.example.spring_batch2.entity.User;
+import com.example.spring_batch2.read.service.ExternalService;
 import com.example.spring_batch2.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -8,37 +9,34 @@ import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
-import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
-import org.springframework.batch.item.data.RepositoryItemReader;
-import org.springframework.batch.item.data.builder.RepositoryItemReaderBuilder;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.batch.item.adapter.ItemReaderAdapter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.domain.Sort;
 
-import java.util.Collections;
 import java.util.Random;
 import java.util.UUID;
 
 @Slf4j
 @RequiredArgsConstructor
-//@Configuration
-public class JpaPageableItemReaderConfig {
+@Configuration
+public class AdapterItemReaderConfig {
+
     private final JobBuilderFactory jobBuilderFactory;
     private final StepBuilderFactory stepBuilderFactory;
     private final UserRepository userRepository;
+    private final ExternalService externalService;
 
     @Bean
-    public Job pageableJob() {
-        return jobBuilderFactory.get("jpaPageableItemReaderJob")
+    public Job externalItemReaderJob() {
+        return jobBuilderFactory.get("externalItemReaderJob")
                 .incrementer(new RunIdIncrementer())
-                .start(pageableStep())
+                .start(externalItemReaderStep())
                 .build();
     }
 
     @Bean
-    public Step pageableStep() {
+    public Step externalItemReaderStep() {
         Random random = new Random();
         for(int i=0; i<100; i++){
             User user = User.builder()
@@ -48,30 +46,22 @@ public class JpaPageableItemReaderConfig {
             userRepository.save(user);
         }
 
-        return stepBuilderFactory.get("jpaPageableItemReaderStep")
+        return stepBuilderFactory.get("externalItemReaderStep")
                 .<User, User>chunk(20)
-                .reader(pageableItemReader(null))
+                .reader(itemReaderAdapter())
                 .writer(items -> {
-                    log.info("======================\n write count: {}", items.size());
-                    for (User u : items) {
-                        System.out.println("age: " + u.getAge());
+                    for (User u : items){
+                        log.info("write count: {}", u.getId());
                     }
-                    log.info("======================");
                 })
                 .build();
     }
 
     @Bean
-    @StepScope
-    public RepositoryItemReader<User> pageableItemReader(
-            @Value("#{jobParameters['age']}") Integer age) {
-
-        return new RepositoryItemReaderBuilder<User>()
-                .name("pageableItemReader")
-                .arguments(Collections.singletonList(age))
-                .methodName("findByAgeLessThanEqual")
-                .repository(userRepository)
-                .sorts(Collections.singletonMap("age", Sort.Direction.ASC))
-                .build();
+    public ItemReaderAdapter<User> itemReaderAdapter(){
+        ItemReaderAdapter<User> adapter = new ItemReaderAdapter<>();
+        adapter.setTargetObject(externalService);
+        adapter.setTargetMethod("cntRead");
+        return adapter;
     }
 }
