@@ -34,6 +34,8 @@ dependencies {
 	implementation group: 'com.thoughtworks.xstream', name: 'xstream', version: '1.4.19'
 	implementation 'org.modelmapper:modelmapper:2.4.4'
 	implementation 'org.springframework.batch:spring-batch-integration'
+
+	implementation 'org.springframework.boot:spring-boot-starter-mail'
 }
 
 tasks.named('test') {
