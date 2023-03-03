@@ -15,6 +15,14 @@ spring:
   batch:
     jdbc:
       initialize-schema: always
+
+  activemq:
+    packages:
+      trust-all: true
+
 #    job:
 #      names: ${job.name:NONE}
 #      enabled: false
+
+
+

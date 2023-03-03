@@ -18,7 +18,7 @@ import java.util.UUID;
 
 @Slf4j
 @RequiredArgsConstructor
-@Configuration
+//@Configuration
 public class ItemStreamReaderConfig {
 
     private final JobBuilderFactory jobBuilderFactory;
